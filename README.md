@@ -9,7 +9,7 @@ No backend required. Just open the website, allow camera access, and detect emot
 ## 🌐 Live Demo
 
 ```text
-https://codertheashish.github.io/EmoSense/
+https://codertheashish.github.io/Emotion-Detection/
 ```
 
 ---
@@ -72,8 +72,7 @@ EmoSense/
 ### Clone Repository
 
 ```bash
-git clone https://github.com/codertheashish/EmoSense.git
-cd EmoSense
+https://github.com/codertheashish/Emotion-Detection
 ```
 
 ### Run Locally
@@ -126,16 +125,6 @@ Optimized for:
 * Offline Model Support
 * Emotion-Based Recommendations
 * Download Emotion Reports
-
----
-
-## 📸 Screenshot
-
-Add a screenshot here after deployment:
-
-```markdown
-![EmoSense Screenshot](screenshot.png)
-```
 
 ---
 
