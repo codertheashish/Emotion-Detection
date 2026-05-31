@@ -1,0 +1,485 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"/>
+<title>EmoSense — Live Emotion Detection</title>
+<script defer src="https://cdn.jsdelivr.net/npm/face-api.js@0.22.2/dist/face-api.min.js"></script>
+<link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet"/>
+<style>
+:root{
+  --bg:#0a0a0f;--surface:#12121a;--panel:#1a1a26;
+  --border:rgba(255,255,255,0.07);
+  --accent:#7c6aff;--accent2:#ff6a9e;
+  --text:#f0eeff;--muted:rgba(240,238,255,0.45);
+}
+*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+html,body{height:100%;overflow-x:hidden;background:var(--bg);color:var(--text);font-family:'DM Sans',sans-serif}
+body{display:flex;flex-direction:column;min-height:100vh}
+
+/* ── SPLASH ── */
+#splash{
+  position:fixed;inset:0;z-index:100;background:var(--bg);
+  display:flex;flex-direction:column;align-items:center;justify-content:center;
+  transition:opacity .6s ease,transform .6s ease;
+}
+#splash.hide{opacity:0;transform:scale(1.04);pointer-events:none}
+.splash-logo{
+  font-family:'Space Mono',monospace;font-size:clamp(2.2rem,8vw,4rem);
+  font-weight:700;letter-spacing:-2px;
+  background:linear-gradient(135deg,var(--accent),var(--accent2));
+  -webkit-background-clip:text;-webkit-text-fill-color:transparent;
+  margin-bottom:8px;
+}
+.splash-sub{color:var(--muted);font-size:clamp(0.85rem,3vw,1rem);margin-bottom:48px;letter-spacing:0.08em;text-transform:uppercase}
+.emoji-row{display:flex;gap:12px;margin-bottom:40px;font-size:2rem;animation:float 3s ease-in-out infinite}
+@keyframes float{0%,100%{transform:translateY(0)}50%{transform:translateY(-8px)}}
+#startBtn{
+  background:linear-gradient(135deg,var(--accent),var(--accent2));
+  border:none;color:#fff;font-family:'DM Sans',sans-serif;
+  font-size:1rem;font-weight:600;padding:16px 44px;border-radius:50px;cursor:pointer;
+  box-shadow:0 0 40px rgba(124,106,255,0.4);
+  transition:transform .2s,box-shadow .2s;letter-spacing:0.04em;
+}
+#startBtn:active{transform:scale(0.96)}
+#startBtn:hover{box-shadow:0 0 60px rgba(124,106,255,0.6);transform:translateY(-2px)}
+.permission-note{margin-top:16px;font-size:0.78rem;color:var(--muted);text-align:center;max-width:280px}
+
+/* ── MAIN APP ── */
+#app{display:none;flex-direction:column;min-height:100vh}
+
+/* Header */
+.header{
+  display:flex;align-items:center;justify-content:space-between;
+  padding:12px 16px;border-bottom:1px solid var(--border);
+  background:var(--surface);position:sticky;top:0;z-index:10;
+}
+.logo-small{
+  font-family:'Space Mono',monospace;font-size:1.05rem;font-weight:700;letter-spacing:-1px;
+  background:linear-gradient(135deg,var(--accent),var(--accent2));
+  -webkit-background-clip:text;-webkit-text-fill-color:transparent;
+}
+.header-right{display:flex;align-items:center;gap:8px}
+.status-row{display:flex;align-items:center;gap:7px;font-size:0.76rem;color:var(--muted)}
+.status-dot{width:7px;height:7px;border-radius:50%;background:#a0a0b8;transition:background .4s,box-shadow .4s}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}
+.live .status-dot{background:#64ffb0;box-shadow:0 0 8px #64ffb0;animation:pulse 2s infinite}
+.icon-btn{
+  background:rgba(255,255,255,0.07);border:1px solid var(--border);
+  color:var(--text);font-size:1rem;width:36px;height:36px;
+  border-radius:50%;cursor:pointer;display:flex;align-items:center;justify-content:center;
+  transition:background .2s;flex-shrink:0;
+}
+.icon-btn:active{background:rgba(255,255,255,0.18)}
+.exit-btn{background:rgba(255,70,70,0.12);border-color:rgba(255,70,70,0.3);color:#ff6464}
+.exit-btn:hover{background:rgba(255,70,70,0.25)}
+
+/* ── CAMERA — fixed height, never changes ── */
+.cam-outer{
+  width:100%;max-width:680px;margin:0 auto;
+  background:#000;
+  /* Fixed pixel height so layout never shifts */
+  height:340px;
+  position:relative;overflow:hidden;
+  flex-shrink:0;
+}
+@media(max-width:480px){.cam-outer{height:260px}}
+@media(min-width:600px){
+  .cam-outer,.bottom-panel{border-left:1px solid var(--border);border-right:1px solid var(--border)}
+}
+
+#video{
+  width:100%;height:100%;object-fit:contain;
+  display:block;transform:scaleX(-1);
+}
+#video.back{transform:scaleX(1)}
+#overlay{position:absolute;inset:0;pointer-events:none;transform:scaleX(-1)}
+#overlay.back{transform:scaleX(1)}
+.scanline{
+  position:absolute;inset:0;pointer-events:none;
+  background:repeating-linear-gradient(0deg,transparent,transparent 2px,rgba(124,106,255,0.018) 2px,rgba(124,106,255,0.018) 4px)
+}
+
+/* Dominant badge on video */
+#dominantBadge{
+  position:absolute;bottom:14px;left:50%;transform:translateX(-50%);
+  background:rgba(10,10,15,0.78);backdrop-filter:blur(14px);
+  border:1px solid rgba(255,255,255,0.1);border-radius:50px;
+  padding:9px 22px;display:none;align-items:center;gap:10px;
+  font-size:1.05rem;font-weight:600;white-space:nowrap;
+  box-shadow:0 4px 24px rgba(0,0,0,0.5);transition:border-color .3s;
+}
+#dominantBadge .d-emoji{font-size:1.5rem}
+#dominantBadge .d-pct{font-family:'Space Mono',monospace;font-size:0.82rem;color:var(--muted)}
+
+/* Loading overlay */
+#loadingOverlay{
+  position:absolute;inset:0;background:rgba(10,10,15,0.88);
+  display:flex;flex-direction:column;align-items:center;justify-content:center;
+  gap:14px;z-index:5;
+}
+.spinner{width:42px;height:42px;border:3px solid rgba(124,106,255,0.2);
+  border-top-color:var(--accent);border-radius:50%;animation:spin .8s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+.load-text{font-size:0.82rem;color:var(--muted);font-family:'Space Mono',monospace;text-align:center;padding:0 20px}
+
+/* ── BOTTOM PANEL ── */
+.bottom-panel{
+  background:var(--surface);border-top:1px solid var(--border);
+  padding:16px 16px 24px;
+  max-width:680px;width:100%;margin:0 auto;
+}
+.section-label{font-size:0.7rem;text-transform:uppercase;letter-spacing:0.12em;color:var(--muted);margin-bottom:12px}
+
+/* ── EMOTION GRID — emoji + percentage tiles ── */
+.emotion-grid{
+  display:grid;
+  grid-template-columns:repeat(4,1fr);
+  gap:8px;
+  margin-bottom:18px;
+}
+@media(max-width:360px){.emotion-grid{grid-template-columns:repeat(3,1fr)}}
+
+.emo-tile{
+  background:var(--panel);border:1px solid var(--border);
+  border-radius:14px;padding:10px 6px 8px;
+  display:flex;flex-direction:column;align-items:center;gap:4px;
+  transition:border-color .3s,background .3s;
+}
+.emo-tile.active{
+  background:rgba(124,106,255,0.1);
+  border-color:rgba(124,106,255,0.45);
+}
+.emo-tile .t-emoji{font-size:1.6rem;line-height:1}
+.emo-tile .t-pct{
+  font-family:'Space Mono',monospace;font-size:0.72rem;font-weight:700;
+  color:var(--muted);transition:color .3s;
+}
+.emo-tile.active .t-pct{color:var(--text)}
+.emo-tile .t-name{font-size:0.62rem;color:var(--muted);text-transform:capitalize;letter-spacing:0.03em}
+
+/* ── HISTORY ── */
+.history-track{
+  display:flex;gap:5px;overflow-x:auto;padding-bottom:4px;scrollbar-width:none;
+}
+.history-track::-webkit-scrollbar{display:none}
+.h-pill{
+  flex-shrink:0;font-size:1.05rem;width:32px;height:32px;
+  display:flex;align-items:center;justify-content:center;
+  border-radius:50%;background:var(--panel);border:1px solid var(--border);
+  animation:popIn .18s ease;position:relative;
+}
+.h-pill .h-pct{
+  position:absolute;bottom:-14px;left:50%;transform:translateX(-50%);
+  font-family:'Space Mono',monospace;font-size:0.58rem;color:var(--muted);
+  white-space:nowrap;
+}
+@keyframes popIn{from{transform:scale(0)}to{transform:scale(1)}}
+.history-wrap{padding-bottom:18px}
+
+/* EXIT dialog */
+#exitOverlay{
+  position:fixed;inset:0;z-index:200;
+  background:rgba(10,10,15,0.85);backdrop-filter:blur(8px);
+  display:none;align-items:center;justify-content:center;
+}
+.exit-card{
+  background:var(--surface);border:1px solid var(--border);
+  border-radius:20px;padding:32px 28px;text-align:center;max-width:300px;width:90%;
+}
+.exit-card h2{font-size:1.2rem;margin-bottom:8px}
+.exit-card p{font-size:0.85rem;color:var(--muted);margin-bottom:24px}
+.exit-btns{display:flex;gap:10px;justify-content:center}
+.btn-cancel{
+  flex:1;padding:11px;border-radius:50px;
+  background:rgba(255,255,255,0.07);border:1px solid var(--border);
+  color:var(--text);font-family:'DM Sans',sans-serif;font-size:0.9rem;cursor:pointer;
+}
+.btn-exit{
+  flex:1;padding:11px;border-radius:50px;
+  background:rgba(255,60,60,0.15);border:1px solid rgba(255,60,60,0.35);
+  color:#ff6464;font-family:'DM Sans',sans-serif;font-size:0.9rem;font-weight:600;cursor:pointer;
+}
+.btn-exit:hover{background:rgba(255,60,60,0.28)}
+</style>
+</head>
+<body>
+
+<!-- SPLASH -->
+<div id="splash">
+  <div class="splash-logo">EmoSense</div>
+  <div class="splash-sub">Real-time Emotion Detection</div>
+  <div class="emoji-row">😊 😢 😠 😨 😲 😐</div>
+  <button id="startBtn" onclick="initApp()">▶ Start Camera</button>
+  <p class="permission-note">Camera permission required · Works on mobile &amp; desktop</p>
+</div>
+
+<!-- EXIT CONFIRM -->
+<div id="exitOverlay">
+  <div class="exit-card">
+    <h2>Exit EmoSense?</h2>
+    <p>Camera will stop and you'll return to the start screen.</p>
+    <div class="exit-btns">
+      <button class="btn-cancel" onclick="closeExitDialog()">Cancel</button>
+      <button class="btn-exit"   onclick="doExit()">Exit</button>
+    </div>
+  </div>
+</div>
+
+<!-- MAIN APP -->
+<div id="app">
+  <div class="header">
+    <div class="logo-small">EmoSense</div>
+    <div class="header-right">
+      <div class="status-row" id="statusRow">
+        <div class="status-dot" id="statusDot"></div>
+        <span id="statusText">Initializing</span>
+      </div>
+      <button class="icon-btn" title="Switch camera" onclick="switchCamera()">⟳</button>
+      <button class="icon-btn exit-btn" title="Exit" onclick="openExitDialog()">✕</button>
+    </div>
+  </div>
+
+  <!-- CAMERA — fixed height, never moves -->
+  <div class="cam-outer">
+    <video id="video" autoplay muted playsinline></video>
+    <canvas id="overlay"></canvas>
+    <div class="scanline"></div>
+    <div id="dominantBadge">
+      <span class="d-emoji" id="dEmoji">😐</span>
+      <span id="dLabel">neutral</span>
+      <span class="d-pct" id="dPct">0%</span>
+    </div>
+    <div id="loadingOverlay">
+      <div class="spinner"></div>
+      <div class="load-text" id="loadText">Loading AI models…</div>
+    </div>
+  </div>
+
+  <!-- BOTTOM PANEL -->
+  <div class="bottom-panel">
+
+    <!-- Emotion tiles: emoji + % always visible -->
+    <div class="section-label">Emotions</div>
+    <div class="emotion-grid" id="emotionGrid"></div>
+
+    <!-- History -->
+    <div class="section-label">History</div>
+    <div class="history-wrap">
+      <div class="history-track" id="historyTrack"></div>
+    </div>
+
+  </div>
+</div>
+
+<script>
+const EMOTIONS = {
+  happy:     {emoji:'😊', color:'#ffd166'},
+  sad:       {emoji:'😢', color:'#6ab4ff'},
+  angry:     {emoji:'😠', color:'#ff6464'},
+  fearful:   {emoji:'😨', color:'#b06aff'},
+  disgusted: {emoji:'🤢', color:'#64ffb0'},
+  surprised: {emoji:'😲', color:'#ff9f40'},
+  neutral:   {emoji:'😐', color:'#a0a0b8'},
+};
+
+let videoStream = null, animFrame = null, modelsLoaded = false, facingMode = 'user';
+
+/* Build emotion grid tiles */
+function buildGrid() {
+  const g = document.getElementById('emotionGrid');
+  g.innerHTML = '';
+  Object.entries(EMOTIONS).forEach(([name, {emoji}]) => {
+    g.innerHTML += `
+      <div class="emo-tile" id="tile-${name}">
+        <div class="t-emoji">${emoji}</div>
+        <div class="t-pct" id="tpct-${name}">0%</div>
+        <div class="t-name">${name}</div>
+      </div>`;
+  });
+}
+
+/* Update tiles */
+function updateTiles(expressions, domName) {
+  Object.entries(expressions).forEach(([name, score]) => {
+    const tile = document.getElementById('tile-' + name);
+    const pct  = document.getElementById('tpct-' + name);
+    if (pct)  pct.textContent = Math.round(score * 100) + '%';
+    if (tile) {
+      tile.classList.toggle('active', name === domName);
+      const info = EMOTIONS[name];
+      tile.style.borderColor = name === domName ? info.color + '88' : '';
+      tile.style.background  = name === domName ? info.color + '18' : '';
+      pct.style.color        = name === domName ? info.color : '';
+    }
+  });
+}
+
+async function initApp() {
+  document.getElementById('splash').classList.add('hide');
+  setTimeout(() => document.getElementById('splash').style.display = 'none', 650);
+  document.getElementById('app').style.display = 'flex';
+  buildGrid();
+  await startCamera();
+  await loadModels();
+  startDetection();
+}
+
+async function startCamera() {
+  try {
+    if (videoStream) videoStream.getTracks().forEach(t => t.stop());
+    videoStream = await navigator.mediaDevices.getUserMedia({
+      video: { facingMode, width:{ideal:1280}, height:{ideal:960} },
+      audio: false
+    });
+    const v = document.getElementById('video');
+    const ov = document.getElementById('overlay');
+    v.srcObject = videoStream;
+    v.className  = facingMode === 'user' ? '' : 'back';
+    ov.className = facingMode === 'user' ? '' : 'back';
+    await new Promise(r => v.onloadedmetadata = r);
+    v.play();
+  } catch(e) {
+    document.getElementById('loadText').textContent = 'Camera denied. Please allow access.';
+    setStatus('Camera error','#ff6464',false);
+  }
+}
+
+async function switchCamera() {
+  facingMode = facingMode === 'user' ? 'environment' : 'user';
+  await startCamera();
+}
+
+async function loadModels() {
+  const lt = document.getElementById('loadText');
+  try {
+    const BASE = 'https://cdn.jsdelivr.net/npm/@vladmandic/face-api/model/';
+    lt.textContent = 'Loading face detector…';
+    await faceapi.nets.tinyFaceDetector.loadFromUri(BASE);
+    lt.textContent = 'Loading expression model…';
+    await faceapi.nets.faceExpressionNet.loadFromUri(BASE);
+    modelsLoaded = true;
+    document.getElementById('loadingOverlay').style.display = 'none';
+    setStatus('Live','#64ffb0',true);
+  } catch(e) {
+    document.getElementById('loadText').textContent = 'Model load failed — check internet';
+    setStatus('Error','#ff6464',false);
+  }
+}
+
+function setStatus(text,color,live) {
+  document.getElementById('statusText').textContent = text;
+  const d = document.getElementById('statusDot');
+  d.style.background = color; d.style.boxShadow = `0 0 8px ${color}`;
+  document.getElementById('statusRow').classList.toggle('live', live);
+}
+
+function startDetection() {
+  const video = document.getElementById('video');
+  const canvas = document.getElementById('overlay');
+  const ctx = canvas.getContext('2d');
+
+  async function detect() {
+    if (!modelsLoaded || video.readyState < 2) { animFrame = requestAnimationFrame(detect); return; }
+
+    canvas.width = video.videoWidth; canvas.height = video.videoHeight;
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+    let detections;
+    try {
+      detections = await faceapi
+        .detectAllFaces(video, new faceapi.TinyFaceDetectorOptions({inputSize:320, scoreThreshold:0.35}))
+        .withFaceExpressions();
+    } catch(_) { animFrame = requestAnimationFrame(detect); return; }
+
+    const badge = document.getElementById('dominantBadge');
+
+    if (!detections || detections.length === 0) {
+      badge.style.display = 'none';
+      // Reset all tiles to 0% when no face
+      Object.keys(EMOTIONS).forEach(name => {
+        const p = document.getElementById('tpct-' + name);
+        const t = document.getElementById('tile-' + name);
+        if (p) p.textContent = '0%';
+        if (t) { t.classList.remove('active'); t.style.borderColor=''; t.style.background=''; p.style.color=''; }
+      });
+      animFrame = requestAnimationFrame(detect); return;
+    }
+
+    // Draw corner brackets
+    const dims = {width: video.videoWidth, height: video.videoHeight};
+    faceapi.matchDimensions(canvas, dims);
+    faceapi.resizeResults(detections, dims).forEach(det => {
+      const b = det.detection.box;
+      const s = Math.min(22, b.width * 0.18);
+      ctx.strokeStyle = 'rgba(124,106,255,0.9)'; ctx.lineWidth = 2.5; ctx.lineCap = 'round';
+      ctx.beginPath();
+      ctx.moveTo(b.x+s,b.y); ctx.lineTo(b.x,b.y); ctx.lineTo(b.x,b.y+s);
+      ctx.moveTo(b.x+b.width-s,b.y); ctx.lineTo(b.x+b.width,b.y); ctx.lineTo(b.x+b.width,b.y+s);
+      ctx.moveTo(b.x,b.y+b.height-s); ctx.lineTo(b.x,b.y+b.height); ctx.lineTo(b.x+s,b.y+b.height);
+      ctx.moveTo(b.x+b.width-s,b.y+b.height); ctx.lineTo(b.x+b.width,b.y+b.height); ctx.lineTo(b.x+b.width,b.y+b.height-s);
+      ctx.stroke();
+    });
+
+    const exprs = detections[0].expressions;
+    const [domName, domScore] = Object.entries(exprs).sort((a,b) => b[1]-a[1])[0];
+    const info = EMOTIONS[domName] || EMOTIONS.neutral;
+
+    // Update tiles
+    updateTiles(exprs, domName);
+
+    // Update badge
+    badge.style.display = 'flex';
+    badge.style.borderColor = info.color + '66';
+    document.getElementById('dEmoji').textContent = info.emoji;
+    document.getElementById('dLabel').textContent = domName;
+    document.getElementById('dPct').textContent   = Math.round(domScore * 100) + '%';
+
+    // History on change
+    if (window._lastEmo !== domName) {
+      window._lastEmo = domName;
+      addHistory(info.emoji, info.color, domName, Math.round(domScore*100));
+    }
+
+    animFrame = requestAnimationFrame(detect);
+  }
+  detect();
+}
+
+function addHistory(emoji, color, label, pct) {
+  const track = document.getElementById('historyTrack');
+  const pill = document.createElement('div');
+  pill.className = 'h-pill';
+  pill.title = label + ' ' + pct + '%';
+  pill.style.borderColor = color + '55';
+  pill.innerHTML = `${emoji}<span class="h-pct">${pct}%</span>`;
+  track.appendChild(pill);
+  track.scrollLeft = track.scrollWidth;
+  while (track.children.length > 50) track.removeChild(track.firstChild);
+}
+
+function openExitDialog() {
+  document.getElementById('exitOverlay').style.display = 'flex';
+  if (animFrame) { cancelAnimationFrame(animFrame); animFrame = null; }
+}
+function closeExitDialog() {
+  document.getElementById('exitOverlay').style.display = 'none';
+  if (modelsLoaded) startDetection();
+}
+function doExit() {
+  if (videoStream) { videoStream.getTracks().forEach(t => t.stop()); videoStream = null; }
+  if (animFrame)   { cancelAnimationFrame(animFrame); animFrame = null; }
+  modelsLoaded = false; window._lastEmo = null; facingMode = 'user';
+  document.getElementById('exitOverlay').style.display = 'none';
+  document.getElementById('app').style.display = 'none';
+  document.getElementById('historyTrack').innerHTML = '';
+  document.getElementById('dominantBadge').style.display = 'none';
+  document.getElementById('loadingOverlay').style.display = 'flex';
+  document.getElementById('loadText').textContent = 'Loading AI models…';
+  setStatus('Initializing','#a0a0b8',false);
+  const sp = document.getElementById('splash');
+  sp.style.display = 'flex'; sp.classList.remove('hide');
+}
+</script>
+</body>
+</html>
