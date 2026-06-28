@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+    <title>EmoSense — Live Emotion Detection</title>
+
+    <!-- External Libraries -->
+    <script defer src="https://cdn.jsdelivr.net/npm/face-api.js@0.22.2/dist/face-api.min.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet" />
+
+    <!-- App Styles -->
+    <link rel="stylesheet" href="style.css" />
+</head>
+
+<body>
+
+    <!-- ===================== SPLASH SCREEN ===================== -->
+    <div id="splash">
+        <div class="splash-logo">EmoSense</div>
+        <div class="splash-sub">Real-time Emotion Detection</div>
+        <div class="emoji-row">😊 😢 😠 😨 😲 😐</div>
+        <button id="startBtn" onclick="initApp()">▶ Start Camera</button>
+        <p class="permission-note">Camera permission required · Works on mobile &amp; desktop</p>
+    </div>
+
+    <!-- ===================== EXIT CONFIRM DIALOG ===================== -->
+    <div id="exitOverlay">
+        <div class="exit-card">
+            <h2>Exit EmoSense?</h2>
+            <p>Camera will stop and you'll return to the start screen.</p>
+            <div class="exit-btns">
+                <button class="btn-cancel" onclick="closeExitDialog()">Cancel</button>
+                <button class="btn-exit"   onclick="doExit()">Exit</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ===================== MAIN APP ===================== -->
+    <div id="app">
+
+        <!-- Header -->
+        <div class="header">
+            <div class="logo-small">EmoSense</div>
+            <div class="header-right">
+                <div class="status-row" id="statusRow">
+                    <div class="status-dot" id="statusDot"></div>
+                    <span id="statusText">Initializing</span>
+                </div>
+                <button class="icon-btn" title="Switch camera" onclick="switchCamera()">⟳</button>
+                <button class="icon-btn exit-btn" title="Exit" onclick="openExitDialog()">✕</button>
+            </div>
+        </div>
+
+        <!-- Camera — fixed height, layout never shifts -->
+        <div class="cam-outer">
+            <video id="video" autoplay muted playsinline></video>
+            <canvas id="overlay"></canvas>
+            <div class="scanline"></div>
+
+            <!-- Dominant emotion badge -->
+            <div id="dominantBadge">
+                <span class="d-emoji" id="dEmoji">😐</span>
+                <span id="dLabel">neutral</span>
+                <span class="d-pct" id="dPct">0%</span>
+            </div>
+
+            <!-- Loading overlay -->
+            <div id="loadingOverlay">
+                <div class="spinner"></div>
+                <div class="load-text" id="loadText">Loading AI models…</div>
+            </div>
+        </div>
+
+        <!-- Bottom Panel -->
+        <div class="bottom-panel">
+
+            <!-- Emotion tiles -->
+            <div class="section-label">Emotions</div>
+            <div class="emotion-grid" id="emotionGrid"></div>
+
+            <!-- History -->
+            <div class="section-label">History</div>
+            <div class="history-wrap">
+                <div class="history-track" id="historyTrack"></div>
+            </div>
+
+        </div>
+    </div>
+
+    <!-- ===================== SCRIPTS ===================== -->
+    <script src="script.js"></script>
+
+</body>
+
+</html>
