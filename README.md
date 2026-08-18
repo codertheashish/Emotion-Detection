@@ -156,5 +156,5 @@ This project is licensed under the MIT License.
 
 ⭐ If you like this portfolio, don't forget to give it a star on GitHub.
 
-<img width="601" height="437" alt="Emotion_detection" src="https://github.com/user-attachments/assets/4d9ba267-f6f8-44b1-8cd2-037615ba6809" />
+<img width="601" height="350" alt="Emotion_detection" src="https://github.com/user-attachments/assets/4d9ba267-f6f8-44b1-8cd2-037615ba6809" />
 
