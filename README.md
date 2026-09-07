@@ -72,7 +72,7 @@ EmoSense/
 ### Clone Repository
 
 ```bash
-https://github.com/codertheashish/Emotion-Detection
+https://github.com/codertheashish/Emotion-Detection.git
 ```
 
 ### Run Locally
